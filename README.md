@@ -1,11 +1,46 @@
 # Estimating Codes for Fund Flow IV Project
 
-1.	Use mc_tripleIV_hazard.m & mc_tripleIV_hazard_Figue2.m to produce Figure 1, Figure 2a, and Figure2b respectively.
+This repository contains the MATLAB code and data structure used in the **Hedge Fund Flow IV** project.
 
-2.	Use StatisticDescription.m to produce Table 2
+---
 
-3.	Use IVPanelRegressionD2_Windowed.m to produce Table 3
+## 📁 Data Folder
 
-4.	Use Hazard_IV2IRS_twoWay_CFTConly.m  & hazard_IV2IRS_twoWay_CFTConly_Naiive.m  to produce Table 4
+- `HedgeFundCharacteristics/`
+- `performance_with_instruments/`  
+  **(Files too large for GitHub — download from Google Drive)**  
+  👉 https://drive.google.com/drive/folders/1oy-8dsA7IhWcSjl2C0pYZf-lQp9aX1cu?usp=drive_link
 
-5.	Use IVPanelRegression_Windowed_Robust.m & IVPanelRegressionD2_Windowed_Robust.m to produce Table 5
+---
+
+## 📁 Code Folder
+
+### Simulation & Figures
+- `mc_tripleIV_hazard.m`  
+- `mc_tripleIV_hazard_Figure2.m`  
+  - Generates **Figure 1**, **Figure 2a**, and **Figure 2b**
+
+### Summary Statistics
+- `StatisticDescription.m`  
+  - Produces **Table 2**
+
+### Panel IV Regressions
+- `IVPanelRegressionD2_Windowed.m`  
+  - Produces **Table 3**
+
+### Hazard Model (IV vs Naïve)
+- `Hazard_IV2IRS_twoWay_CFTConly.m`  
+- `Hazard_IV2IRS_twoWay_CFTConly_Naiive.m`  
+  - Produce **Table 4**
+
+### Robustness Checks
+- `IVPanelRegression_Windowed_Robust.m`  
+- `IVPanelRegressionD2_Windowed_Robust.m`  
+  - Produce **Table 5**
+
+---
+
+## 📎 Notes
+- All code is written in MATLAB.
+- Large data files are hosted externally to comply with GitHub’s file size limits.
+
