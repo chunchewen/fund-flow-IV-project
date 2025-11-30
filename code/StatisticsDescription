@@ -1,0 +1,155 @@
+yearMin   = 1996;
+yearMax   = 2017;
+US_CODE   = 66;                           % DomicileCountry code for US
+outFile   = 'descriptives_Flex_Exposure_1996_2017.csv';
+
+T = readtable('C:\Users\ias05106\OneDrive - University of Strathclyde\Desktop\Updated Hedge Fund Project\HedgeFundCharacters.xlsx','sheet', 'FundCharacteristics');
+T.Properties.VariableNames = matlab.lang.makeValidName(T.Properties.VariableNames);
+
+% Treat -999 as missing 
+isNum   = varfun(@isnumeric, T, "OutputFormat","uniform");
+numVars = T.Properties.VariableNames(isNum);
+for v = 1:numel(numVars)
+    x = T.(numVars{v});
+    x(x == -999) = NaN;
+    T.(numVars{v}) = x;
+end
+
+% Ensure FundID exists
+assert(any(strcmpi(T.Properties.VariableNames,'FundID')), 'FundID missing in characteristics file.');
+if ~strcmp('FundID', T.Properties.VariableNames{strcmpi(T.Properties.VariableNames,'FundID')})
+    T.Properties.VariableNames(strcmpi(T.Properties.VariableNames,'FundID')) = {'FundID'};
+end
+
+%% ================== LOAD PANEL & FILTER YEARS =======================
+P = readtable('C:\Users\ias05106\OneDrive - University of Strathclyde\Desktop\LipperTASS2018\FundFlowWork\Statistics2023\HedgeFundPerformanceFlow.xlsx'); 
+
+% Normalize column names
+if any(strcmpi(P.Properties.VariableNames,'FundID'))
+    P.Properties.VariableNames(strcmpi(P.Properties.VariableNames,'FundID')) = {'FundID'};
+else
+    error('FundID not found in panel file.');
+end
+
+% Derive Year if needed
+if any(strcmpi(P.Properties.VariableNames,'Year'))
+    P.Properties.VariableNames(strcmpi(P.Properties.VariableNames,'Year')) = {'Year'};
+elseif any(strcmpi(P.Properties.VariableNames,'Date'))
+    dt = P.(P.Properties.VariableNames{strcmpi(P.Properties.VariableNames,'Date')});
+    if ~isdatetime(dt), dt = datetime(dt); end
+    P.Year = year(dt);
+else
+    error('Panel file must contain Year or Date.');
+end
+
+% Keep funds that appear at least once in [yearMin, yearMax]
+inWindow = P.Year >= yearMin & P.Year <= yearMax;
+fundsInWindow = unique(P.FundID(inWindow));
+T = T(ismember(T.FundID, fundsInWindow), :);
+
+%% ================== VARIABLE LISTS ==================================
+% Flex inputs
+flexVars = {'LockUPPeriod','RedemptionNoticePeriod', ...
+            'SubscriptionFrequency','RedemptionFrequency', ...
+            'AcceptsManagedAccounts','OpenToPublic','MinimumInvestment'};
+
+% Exposure inputs — CFTC (derivatives intensity building blocks)
+cftcVars = {'Futures','Derivatives','Margin','FXCredit', ...
+            'MaxLeverage','AvgLeverage'};  % Style handled below as shares
+
+% Style codebook (numeric 1..14 -> names)
+styleCodes = (1:14).';
+styleNames = { ...
+  'Convertible Arbitrage', 'Dedicated Short Bias', 'Emerging Markets', ...
+  'Equity Market Neutral', 'Event Driven', 'Fixed Income Arbitrage', ...
+  'Fund of Funds', 'Global Macro', 'Long/Short Equity Hedge', ...
+  'Managed Futures', 'Multi-Strategy', 'Options Strategy', ...
+  'Other', 'Undefined'};
+
+function row = statRow(label, x)
+    x = x(:);
+    idx = ~isnan(x);
+    n  = sum(idx);
+    if n==0
+        mu = NaN; sd = NaN; q = [NaN NaN NaN NaN NaN];
+    else
+        mu = mean(x(idx));
+        sd = std(x(idx));
+        q  = quantile(x(idx), [0 0.25 0.50 0.75 1.00]);
+    end
+    row = {label, n, mu, sd, q(1), q(2), q(3), q(4), q(5)};
+end
+
+%% ================== BUILD DESCRIPTIVE ROWS ==========================
+rows = {};
+
+% Flex inputs
+for i = 1:numel(flexVars)
+    v = flexVars{i};
+    if ismember(v, T.Properties.VariableNames)
+        rows(end+1,:) = statRow(v, T.(v)); 
+    end
+end
+
+% CFTC exposure inputs (numeric)
+for i = 1:numel(cftcVars)
+    v = cftcVars{i};
+    if ismember(v, T.Properties.VariableNames)
+        rows(end+1,:) = statRow(v, T.(v)); 
+    end
+end
+
+% Style shares (one-hot by code)
+if ismember('Style', T.Properties.VariableNames)
+    S = T.Style;
+    for k = 1:numel(styleCodes)
+        ind = double(S == styleCodes(k));  % 0/1
+        label = sprintf('Style: %s (share)', styleNames{k});
+        rows(end+1,:) = statRow(label, ind); 
+    end
+end
+
+% FATCA Offshore (derived from DomicileCountry)
+if ismember('DomicileCountry', T.Properties.VariableNames)
+    dc = T.DomicileCountry;
+    Offshore = double(~isnan(dc) & (dc ~= US_CODE));  % 1 = non-US domicile
+    rows(end+1,:) = statRow('Offshore (0/1)', Offshore); 
+end
+
+DescAll = cell2table(rows, ...
+    'VariableNames', {'Characteristic','N','Mean','Std','min','p25','p50','p75','max'});
+
+disp('=== Descriptive statistics (Flex + Exposure inputs, funds with any year in 1996–2017) ===');
+disp(DescAll);
+
+writetable(DescAll, outFile);
+fprintf('Wrote %s\n', outFile);
+
+%% ---------- TOTAL FUND×MONTH OBSERVATIONS IN 1996–2017 ------------
+% Build a windowed panel first
+Pwin = P(P.Year >= yearMin & P.Year <= yearMax, :);
+
+% Ensure we have Year and Month
+if any(strcmpi(Pwin.Properties.VariableNames,'Date'))
+    % Derive Year & Month from Date if needed
+    if ~isdatetime(Pwin.Date), Pwin.Date = datetime(Pwin.Date); end
+    Pwin.Year  = year(Pwin.Date);
+    Pwin.Month = month(Pwin.Date);
+elseif ~any(strcmpi(Pwin.Properties.VariableNames,'Month'))
+    error('Panel must contain either Date or Month to count Fund×Month observations.');
+end
+
+% Unique FundID×Year×Month combinations
+keyVars = {'FundID','Year','Month'};
+missingKeys = setdiff(keyVars, Pwin.Properties.VariableNames);
+if ~isempty(missingKeys)
+    error('Missing required panel columns for counting Fund×Month: %s', strjoin(missingKeys, ', '));
+end
+
+% Count total Fund×Month cells in the 1996–2017 window
+[~, uniqIdx] = unique(Pwin(:, keyVars), 'rows');
+totalFundMonthObs = numel(uniqIdx);
+
+fprintf('Total Fund×Month observations in [%d, %d]: %d\n', yearMin, yearMax, totalFundMonthObs);
+
+
